@@ -14,7 +14,7 @@ use Magento\Framework\App\ResourceConnection;
 
 if (getenv('LOYALTY_WALLET_LOCAL_TEST') !== '1') { throw new RuntimeException('Local opt-in required.'); }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 $scope = $om->get(ScopeConfigInterface::class);
 if (parse_url((string) $scope->getValue('web/secure/base_url'), PHP_URL_HOST) !== 'magento.test') {
@@ -83,4 +83,4 @@ try {
     if ($customerId) { $db->delete($resource->getTableName('customer_entity'), ['entity_id = ?' => $customerId, 'email = ?' => $email]); }
 }
 $check(0, $ledger->balance($customerId, $storeId));
-echo json_encode(['wallet_recovery_checks' => $checks, 'all_passed' => true, 'fixtures_removed' => true], JSON_THROW_ON_ERROR) . PHP_EOL;
+file_put_contents('php://output', json_encode(['wallet_recovery_checks' => $checks, 'all_passed' => true, 'fixtures_removed' => true], JSON_THROW_ON_ERROR) . PHP_EOL);

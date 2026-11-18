@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace LoyaltyEngage\LoyaltyShop\Logger;
 
-use Monolog\Logger as MonoLogger;
+use Magento\Framework\Logger\Monolog;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Store\Model\ScopeInterface;
 
-class Logger extends MonoLogger
+class Logger extends Monolog
 {
     public const LOG_PREFIX = '[LOYALTY-SHOP]';
     

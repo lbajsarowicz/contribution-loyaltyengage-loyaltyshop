@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LoyaltyEngage\LoyaltyShop\Setup\Patch\Data;
 
 use Magento\Customer\Model\Customer;
+use Magento\Customer\Model\ResourceModel\Attribute as AttributeResource;
 use Magento\Customer\Setup\CustomerSetupFactory;
 use Magento\Framework\Setup\ModuleDataSetupInterface;
 use Magento\Framework\Setup\Patch\DataPatchInterface;
@@ -31,11 +32,13 @@ class AddCustomerLoyaltyAttributes implements DataPatchInterface
      * @param ModuleDataSetupInterface $moduleDataSetup
      * @param CustomerSetupFactory $customerSetupFactory
      * @param AttributeSetFactory $attributeSetFactory
+     * @param AttributeResource $attributeResource
      */
     public function __construct(
         ModuleDataSetupInterface $moduleDataSetup,
         CustomerSetupFactory $customerSetupFactory,
-        AttributeSetFactory $attributeSetFactory
+        AttributeSetFactory $attributeSetFactory,
+        private AttributeResource $attributeResource
     ) {
         $this->moduleDataSetup = $moduleDataSetup;
         $this->customerSetupFactory = $customerSetupFactory;
@@ -81,7 +84,7 @@ class AddCustomerLoyaltyAttributes implements DataPatchInterface
                 'used_in_forms' => ['adminhtml_customer'],
             ]);
 
-        $attribute->save();
+        $this->attributeResource->save($attribute);
 
         // Add le_points attribute
         $customerSetup->addAttribute(Customer::ENTITY, 'le_points', [
@@ -107,7 +110,7 @@ class AddCustomerLoyaltyAttributes implements DataPatchInterface
                 'used_in_forms' => ['adminhtml_customer'],
             ]);
 
-        $attribute->save();
+        $this->attributeResource->save($attribute);
 
         // Add le_available_coins attribute
         $customerSetup->addAttribute(Customer::ENTITY, 'le_available_coins', [
@@ -133,7 +136,7 @@ class AddCustomerLoyaltyAttributes implements DataPatchInterface
                 'used_in_forms' => ['adminhtml_customer'],
             ]);
 
-        $attribute->save();
+        $this->attributeResource->save($attribute);
 
         // Add le_next_tier attribute
         $customerSetup->addAttribute(Customer::ENTITY, 'le_next_tier', [
@@ -159,7 +162,7 @@ class AddCustomerLoyaltyAttributes implements DataPatchInterface
                 'used_in_forms' => ['adminhtml_customer'],
             ]);
 
-        $attribute->save();
+        $this->attributeResource->save($attribute);
 
         // Add le_points_to_next_tier attribute
         $customerSetup->addAttribute(Customer::ENTITY, 'le_points_to_next_tier', [
@@ -185,9 +188,10 @@ class AddCustomerLoyaltyAttributes implements DataPatchInterface
                 'used_in_forms' => ['adminhtml_customer'],
             ]);
 
-        $attribute->save();
+        $this->attributeResource->save($attribute);
 
         $this->moduleDataSetup->getConnection()->endSetup();
+        return $this;
     }
 
     /**

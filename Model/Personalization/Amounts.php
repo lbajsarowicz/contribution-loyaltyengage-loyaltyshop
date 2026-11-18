@@ -18,7 +18,10 @@ class Amounts
         if ($from === $to) {
             return 1.0;
         }
-        $rate = (float) $this->currencies->create()->load($from)->getRate($to);
+        $currency = $this->currencies->create();
+        $currency->unsRate();
+        $currency->setData('currency_code', $from);
+        $rate = (float) $currency->getRate($to);
         return is_finite($rate) && $rate > 0 ? $rate : null;
     }
 

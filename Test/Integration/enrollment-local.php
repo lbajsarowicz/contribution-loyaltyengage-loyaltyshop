@@ -1,29 +1,28 @@
 <?php
 declare(strict_types=1);
 // Local rollback-only fixtures. Never invokes a remote API or the whole outbox cron.
-if (getenv('LE_ENROLLMENT_LOCAL_TEST') !== '1') { exit("Local opt-in required.\n"); }
+if (getenv('LE_ENROLLMENT_LOCAL_TEST') !== '1') { file_put_contents('php://output', "Local opt-in required.\n"); return; }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = \Magento\Framework\App\Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = \Magento\Framework\App\Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('frontend');
 $stores = $om->get(\Magento\Store\Model\StoreManagerInterface::class);
 $store = $stores->getStore('default');
 if (parse_url($store->getBaseUrl(), PHP_URL_HOST) !== 'magento.test') { throw new RuntimeException('Local demo only.'); }
 $stores->setCurrentStore($store);
-class LocalEnrollmentConfig extends \LoyaltyEngage\LoyaltyShop\Model\Enrollment\Config
+$config = new class extends \LoyaltyEngage\LoyaltyShop\Model\Enrollment\Config
 {
     public string $testMode = 'required';
     public function __construct() {}
     public function mode(int $storeId): string { return $this->testMode; }
     public function label(int $storeId): string { return 'Local enrollment fixture'; }
-}
-class LocalEnrollmentApi extends \LoyaltyEngage\LoyaltyShop\Service\ApiClient
+};
+$api = new class extends \LoyaltyEngage\LoyaltyShop\Service\ApiClient
 {
     public array $calls = [];
     public function __construct() {}
     public function post(string $url, array $body = [], ?int $storeId = null): array
     { $this->calls[] = [$url, $body, $storeId]; return ['acceptedEventCount' => 1]; }
-}
-$config = new LocalEnrollmentConfig();
+};
 $shared = new ReflectionProperty(\Magento\Framework\ObjectManager\ObjectManager::class, '_sharedInstances');
 $instances = $shared->getValue($om);
 $instances[\LoyaltyEngage\LoyaltyShop\Model\Enrollment\Config::class] = $config;
@@ -69,7 +68,6 @@ try {
     $check(false, $member->allowsWallet($customerId, $storeId), 'Pending signup does not unlock wallet');
     $om->get(\Magento\Sales\Api\OrderRepositoryInterface::class)->save($order);
     $check(1, (int) $db->fetchOne($db->select()->from($outbox->table(), ['COUNT(*)'])->where('event_key = ?', $event['event_key'])), 'Repeated saves do not duplicate opt-in');
-    $api = new LocalEnrollmentApi();
     $consumer = new \LoyaltyEngage\LoyaltyShop\Model\Queue\OptInConsumer($om->get(\LoyaltyEngage\LoyaltyShop\Helper\Data::class), $api);
     $consumer->deliver(json_decode($event['payload'], true));
     $check([['event' => 'LoyaltyEngageOptIn', 'identifier' => $email]], $api->calls[0][1], 'Exact wire schema, no audit fields');
@@ -77,5 +75,5 @@ try {
     $check(true, $member->allowsWallet($customerId, $storeId), 'Confirmed opt-in unlocks before next metadata sync');
     $config->testMode = 'advisory';
     $check(true, $member->allowsWallet(0, $storeId), 'Informational mode does not gate wallet');
-    echo json_encode(['enrollment_checks' => $checks, 'passed' => true, 'transport' => 'fake']) . "\n";
-} finally { $db->rollBack(); echo "Enrollment fixtures rolled back.\n"; }
+    file_put_contents('php://output', json_encode(['enrollment_checks' => $checks, 'passed' => true, 'transport' => 'fake']) . "\n");
+} finally { $db->rollBack(); file_put_contents('php://output', "Enrollment fixtures rolled back.\n"); }

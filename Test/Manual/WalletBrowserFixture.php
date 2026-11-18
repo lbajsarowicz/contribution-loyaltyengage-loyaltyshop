@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 // Local-only interactive checkout fixture. Retain test orders for audit; restore config.
-if (getenv('LE_BROWSER_TEST') !== '1') { exit("Local opt-in required.\n"); }
+if (getenv('LE_BROWSER_TEST') !== '1') { file_put_contents('php://output', "Local opt-in required.\n"); return; }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = \Magento\Framework\App\Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = \Magento\Framework\App\Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 $stores = $om->get(\Magento\Store\Model\StoreManagerInterface::class);
 if (parse_url($stores->getStore('default')->getBaseUrl(), PHP_URL_HOST) !== 'magento.test') {
@@ -12,7 +12,7 @@ if (parse_url($stores->getStore('default')->getBaseUrl(), PHP_URL_HOST) !== 'mag
 }
 $resource = $om->get(\Magento\Framework\App\ResourceConnection::class);
 $db = $resource->getConnection();
-$file = BP . '/var/loyalty-wallet-browser-20261111.json';
+$file = dirname(__DIR__, 6) . '/var/loyalty-wallet-browser-20261111.json';
 $mode = $argv[1] ?? 'status';
 $state = is_file($file) ? json_decode(file_get_contents($file), true, 512, JSON_THROW_ON_ERROR) : [];
 $paths = ['loyalty/wallet/enabled' => '1', 'loyalty/wallet/spending_enabled' => '1',
@@ -54,7 +54,7 @@ if ($mode === 'enable') {
     } catch (Throwable $e) { $db->rollBack(); throw $e; }
     file_put_contents($file, json_encode($state, JSON_THROW_ON_ERROR), LOCK_EX);
     $om->get(\Magento\Framework\App\Cache\TypeListInterface::class)->cleanType('config');
-    echo json_encode(['email' => $state['email'], 'password' => $state['password'], 'customer_id' => $state['customer_id']]) . "\n";
+    file_put_contents('php://output', json_encode(['email' => $state['email'], 'password' => $state['password'], 'customer_id' => $state['customer_id']]) . "\n");
 } elseif ($mode === 'resume') {
     if (!$state || !$state['restored'] || empty($state['customer_id'])) {
         throw new RuntimeException('Only a restored fixture can be resumed.');
@@ -73,7 +73,7 @@ if ($mode === 'enable') {
         $db->commit();
     } catch (Throwable $e) { $db->rollBack(); throw $e; }
     $om->get(\Magento\Framework\App\Cache\TypeListInterface::class)->cleanType('config');
-    echo "Test settings resumed; existing balances unchanged.\n";
+    file_put_contents('php://output', "Test settings resumed; existing balances unchanged.\n");
 } elseif ($mode === 'restore') {
     if (!$state || $state['restored']) { throw new RuntimeException('No active fixture.'); }
     $db->beginTransaction();
@@ -91,11 +91,11 @@ if ($mode === 'enable') {
     $state['restored'] = true;
     file_put_contents($file, json_encode($state, JSON_THROW_ON_ERROR), LOCK_EX);
     $om->get(\Magento\Framework\App\Cache\TypeListInterface::class)->cleanType('config');
-    echo "Store settings restored; fictional customer and test orders retained for audit.\n";
+    file_put_contents('php://output', "Store settings restored; fictional customer and test orders retained for audit.\n");
 } elseif ($mode === 'status' && $state) {
-    echo json_encode(['restored' => $state['restored'], 'customer_id' => $state['customer_id'],
+    file_put_contents('php://output', json_encode(['restored' => $state['restored'], 'customer_id' => $state['customer_id'],
         'orders' => $db->fetchAll($db->select()->from($resource->getTableName('sales_order'),
             ['entity_id', 'increment_id', 'store_id', 'state', 'status', 'grand_total', 'quote_id'])->where('customer_id = ?', $state['customer_id'])),
         'balances' => $db->fetchAll($db->select()->from($resource->getTableName('loyaltyshop_wallet_balance'))
-            ->where('customer_id = ?', $state['customer_id']))], JSON_PRETTY_PRINT) . "\n";
+            ->where('customer_id = ?', $state['customer_id']))], JSON_PRETTY_PRINT) . "\n");
 } else { throw new RuntimeException('Use enable, resume, status or restore.'); }
