@@ -5,12 +5,10 @@ namespace LoyaltyEngage\LoyaltyShop\Model;
 
 use Magento\Customer\Api\CustomerRepositoryInterface;
 use LoyaltyEngage\LoyaltyShop\Helper\Data;
-use LoyaltyEngage\LoyaltyShop\Service\ApiClient;
 
 class LoyaltyTierChecker
 {
     public function __construct(
-        ApiClient $apiClient,
         private CustomerRepositoryInterface $customerRepository,
         private Data $loyaltyHelper,
         private CustomerLoyaltyDataProvider $customerLoyaltyDataProvider

@@ -7,14 +7,14 @@ use Magento\Framework\App\ResourceConnection;
 
 if (getenv('LOYALTY_WALLET_LOCAL_TEST') !== '1') { throw new RuntimeException('Local opt-in required.'); }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 if (parse_url((string) $om->get(\Magento\Framework\App\Config\ScopeConfigInterface::class)->getValue('web/secure/base_url'), PHP_URL_HOST) !== 'magento.test') {
     throw new RuntimeException('Restricted to magento.test.');
 }
 $resource = $om->get(ResourceConnection::class);
 $db = $resource->getConnection();
-$file = BP . '/var/loyalty_wallet_storefront_fixture.json';
+$file = dirname(__DIR__, 6) . '/var/loyalty_wallet_storefront_fixture.json';
 $mode = $argv[1] ?? '';
 $configTable = $resource->getTableName('core_config_data');
 $balanceTable = $resource->getTableName('loyaltyshop_wallet_balance');
@@ -58,7 +58,7 @@ if ($mode === 'enable') {
     } catch (Throwable $exception) {
         $db->rollBack(); throw $exception;
     }
-    echo "Local fictional-customer wallet fixture enabled. No orders or payments may be placed with this fixture.\n";
+    file_put_contents('php://output', "Local fictional-customer wallet fixture enabled. No orders or payments may be placed with this fixture.\n");
 } elseif ($mode === 'restore') {
     if (!file_exists($file)) { throw new RuntimeException('No fixture snapshot.'); }
     $snapshot = json_decode(file_get_contents($file), true, 512, JSON_THROW_ON_ERROR);
@@ -81,6 +81,6 @@ if ($mode === 'enable') {
         $db->commit();
         unlink($file);
     } catch (Throwable $exception) { $db->rollBack(); throw $exception; }
-    echo "Store-scoped wallet config and fictional balances restored.\n";
+    file_put_contents('php://output', "Store-scoped wallet config and fictional balances restored.\n");
 } else { throw new RuntimeException('Use enable or restore.'); }
 $om->get(\Magento\Framework\App\Cache\TypeListInterface::class)->cleanType('config');

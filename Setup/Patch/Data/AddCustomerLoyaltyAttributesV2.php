@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LoyaltyEngage\LoyaltyShop\Setup\Patch\Data;
 
 use Magento\Customer\Model\Customer;
+use Magento\Customer\Model\ResourceModel\Attribute as AttributeResource;
 use Magento\Customer\Setup\CustomerSetupFactory;
 use Magento\Framework\Setup\ModuleDataSetupInterface;
 use Magento\Framework\Setup\Patch\DataPatchInterface;
@@ -31,11 +32,13 @@ class AddCustomerLoyaltyAttributesV2 implements DataPatchInterface
      * @param ModuleDataSetupInterface $moduleDataSetup
      * @param CustomerSetupFactory $customerSetupFactory
      * @param AttributeSetFactory $attributeSetFactory
+     * @param AttributeResource $attributeResource
      */
     public function __construct(
         ModuleDataSetupInterface $moduleDataSetup,
         CustomerSetupFactory $customerSetupFactory,
-        AttributeSetFactory $attributeSetFactory
+        AttributeSetFactory $attributeSetFactory,
+        private AttributeResource $attributeResource
     ) {
         $this->moduleDataSetup = $moduleDataSetup;
         $this->customerSetupFactory = $customerSetupFactory;
@@ -81,7 +84,7 @@ class AddCustomerLoyaltyAttributesV2 implements DataPatchInterface
                 'used_in_forms'      => ['adminhtml_customer'],
             ]);
 
-        $attribute->save();
+        $this->attributeResource->save($attribute);
 
         // Add le_expiring_points_30d attribute
         $customerSetup->addAttribute(Customer::ENTITY, 'le_expiring_points_30d', [
@@ -107,9 +110,10 @@ class AddCustomerLoyaltyAttributesV2 implements DataPatchInterface
                 'used_in_forms'      => ['adminhtml_customer'],
             ]);
 
-        $attribute->save();
+        $this->attributeResource->save($attribute);
 
         $this->moduleDataSetup->getConnection()->endSetup();
+        return $this;
     }
 
     /**

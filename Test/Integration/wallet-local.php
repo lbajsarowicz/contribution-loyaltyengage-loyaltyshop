@@ -20,7 +20,7 @@ if (getenv('LOYALTY_WALLET_LOCAL_TEST') !== '1') {
     throw new RuntimeException('Explicit local test opt-in required.');
 }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 $scope = $om->get(ScopeConfigInterface::class);
 $host = parse_url((string) $scope->getValue('web/secure/base_url'), PHP_URL_HOST);
@@ -170,4 +170,4 @@ $check($before, (int) $db->fetchOne('SELECT COUNT(*) FROM ' . $ledger->table('le
 foreach ($stores as $i => $storeId) {
     $check($balances[$i], $ledger->balance($customerId, (int) $storeId), 'Fixture balance rollback');
 }
-echo json_encode(['wallet_accrual_checks' => $checkCount, 'all_passed' => true, 'fixtures_rolled_back' => true], JSON_THROW_ON_ERROR) . PHP_EOL;
+file_put_contents('php://output', json_encode(['wallet_accrual_checks' => $checkCount, 'all_passed' => true, 'fixtures_rolled_back' => true], JSON_THROW_ON_ERROR) . PHP_EOL);

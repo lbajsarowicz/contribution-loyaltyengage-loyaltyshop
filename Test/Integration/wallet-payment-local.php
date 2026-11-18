@@ -16,7 +16,7 @@ if (getenv('LOYALTY_WALLET_LOCAL_TEST') !== '1') {
     throw new RuntimeException('Local wallet test opt-in required.');
 }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 if (parse_url((string) $om->get(ScopeConfigInterface::class)->getValue('web/secure/base_url'), PHP_URL_HOST) !== 'magento.test') {
     throw new RuntimeException('Restricted to magento.test.');
@@ -305,4 +305,4 @@ try {
 }
 $check($before, $ledger->balance($customerId, $storeId), 'Financial fixtures rolled back');
 $check($beforeAvailable, $ledger->available($customerId, $storeId), 'Reservation fixtures rolled back');
-echo json_encode(['store' => $storeCode, 'wallet_payment_checks' => $count, 'all_passed' => true, 'fixtures_rolled_back' => true], JSON_THROW_ON_ERROR) . PHP_EOL;
+file_put_contents('php://output', json_encode(['store' => $storeCode, 'wallet_payment_checks' => $count, 'all_passed' => true, 'fixtures_rolled_back' => true], JSON_THROW_ON_ERROR) . PHP_EOL);

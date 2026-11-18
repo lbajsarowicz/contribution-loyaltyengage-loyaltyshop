@@ -32,7 +32,7 @@ class RuntimeTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         require_once dirname(__DIR__, 6) . '/app/bootstrap.php';
-        self::$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+        self::$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
         try {
             self::$om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
         } catch (\Magento\Framework\Exception\LocalizedException $e) {
@@ -61,7 +61,7 @@ class RuntimeTest extends TestCase
 
     public function testSetupPatchesLeaveDeploymentConfigurationUnchanged(): void
     {
-        $path = BP . '/app/etc/env.php';
+        $path = dirname(__DIR__, 6) . '/app/etc/env.php';
         $before = file_get_contents($path);
         $patch = new \LoyaltyEngage\LoyaltyShop\Setup\Patch\Data\ConfigureCronConsumers();
         self::assertSame($patch, $patch->apply());
@@ -881,7 +881,7 @@ class RuntimeTest extends TestCase
         $helper->method('getFreeShippingTiersArray')->willReturn(['Gold']);
         $api = $this->createMock(ApiClient::class);
         $api->expects(self::never())->method('get');
-        $checker = new \LoyaltyEngage\LoyaltyShop\Model\LoyaltyTierChecker($api,
+        $checker = new \LoyaltyEngage\LoyaltyShop\Model\LoyaltyTierChecker(
             self::$om->get(\Magento\Customer\Api\CustomerRepositoryInterface::class), $helper, $provider);
         $quote = self::$om->get(\Magento\Quote\Model\QuoteFactory::class)->create();
         $quote->setStoreId(1)->setCustomerId($customerId)->setCustomerIsGuest(false);

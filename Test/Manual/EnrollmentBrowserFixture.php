@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 // Local browser fixture only; never sends enrollment events or spends real coins.
-if (getenv('LE_BROWSER_TEST') !== '1') { exit("Local opt-in required.\n"); }
+if (getenv('LE_BROWSER_TEST') !== '1') { file_put_contents('php://output', "Local opt-in required.\n"); return; }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = \Magento\Framework\App\Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = \Magento\Framework\App\Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 $stores = $om->get(\Magento\Store\Model\StoreManagerInterface::class);
 if (parse_url($stores->getStore('default')->getBaseUrl(), PHP_URL_HOST) !== 'magento.test') {
@@ -16,7 +16,7 @@ $config = $r->getTableName('core_config_data');
 $data = $r->getTableName('loyaltyshop_customer_store_data');
 $customer = $om->get(\Magento\Customer\Api\CustomerRepositoryInterface::class)->get('wallet-browser-20261111@example.com', 1);
 $id = (int) $customer->getId();
-$file = BP . '/var/loyalty-enrollment-browser.json';
+$file = dirname(__DIR__, 6) . '/var/loyalty-enrollment-browser.json';
 $state = is_file($file) ? json_decode(file_get_contents($file), true, 512, JSON_THROW_ON_ERROR) : [];
 $mode = $argv[1] ?? 'status';
 $paths = ['loyalty/enrollment/mode' => 'required', 'loyalty/enrollment/label' => 'Ja, ik wil sparen met Loyalty Engage'];
@@ -58,6 +58,6 @@ if ($mode === 'enable') {
     file_put_contents($file, json_encode($state, JSON_THROW_ON_ERROR), LOCK_EX);
 } elseif ($mode !== 'status') { throw new RuntimeException('Invalid mode.'); }
 $om->get(\Magento\Framework\App\Cache\TypeListInterface::class)->cleanType('config');
-echo json_encode(['mode' => $mode, 'restored' => $state['restored'] ?? null, 'customer_id' => $id,
+file_put_contents('php://output', json_encode(['mode' => $mode, 'restored' => $state['restored'] ?? null, 'customer_id' => $id,
     'choices' => $db->fetchAll($db->select()->from(['e' => $r->getTableName('loyaltyshop_enrollment_quote')])
-        ->join(['q' => $r->getTableName('quote')], 'q.entity_id=e.quote_id', ['customer_id', 'is_active'])->where('q.customer_id = ?', $id))], JSON_PRETTY_PRINT) . "\n";
+        ->join(['q' => $r->getTableName('quote')], 'q.entity_id=e.quote_id', ['customer_id', 'is_active'])->where('q.customer_id = ?', $id))], JSON_PRETTY_PRINT) . "\n");

@@ -26,7 +26,6 @@ class AmountsTest extends TestCase
     {
         $factory = $this->createMock(CurrencyFactory::class);
         $currency = $this->createMock(Currency::class);
-        $currency->method('load')->willReturnSelf();
         $currency->method('getRate')->with('EUR')->willReturn(0.8);
         $factory->method('create')->willReturn($currency);
         $simple = $this->item(20, 24.2);
@@ -48,7 +47,6 @@ class AmountsTest extends TestCase
     {
         $factory = $this->createMock(CurrencyFactory::class);
         $currency = $this->createMock(Currency::class);
-        $currency->method('load')->willReturnSelf();
         $currency->method('getRate')->willReturn(false);
         $factory->method('create')->willReturn($currency);
         $amounts = new Amounts($factory);

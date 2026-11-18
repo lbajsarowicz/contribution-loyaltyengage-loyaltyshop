@@ -6,6 +6,8 @@ namespace LoyaltyEngage\LoyaltyShop\Model;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Lock\LockManagerInterface;
 use Magento\SalesRule\Model\RuleFactory;
+use Magento\SalesRule\Model\ResourceModel\Rule as RuleResource;
+use Magento\SalesRule\Model\ResourceModel\Coupon as CouponResource;
 use Magento\SalesRule\Model\CouponFactory;
 use Magento\SalesRule\Model\ResourceModel\Coupon\CollectionFactory as Coupons;
 use Magento\SalesRule\Model\ResourceModel\Rule\CollectionFactory as Rules;
@@ -20,7 +22,9 @@ class CouponRules
         private Coupons $couponCollection, private Rules $ruleCollection,
         private CouponOwnership $ownership, private GroupRepositoryInterface $groups,
         private SearchCriteriaBuilderFactory $criteria, private StoreManagerInterface $stores,
-        private LockManagerInterface $lock
+        private LockManagerInterface $lock,
+        private RuleResource $ruleResource,
+        private CouponResource $couponResource
     ) {
     }
 
@@ -38,7 +42,8 @@ class CouponRules
             $action = $fixed ? 'cart_fixed' : 'by_percent';
             $coupon = $this->couponCollection->create()->addFieldToFilter('code', $code)->getFirstItem();
             if ($coupon->getId()) {
-                $rule = $this->rules->create()->load($coupon->getRuleId());
+                $rule = $this->rules->create();
+                $this->ruleResource->load($rule, $coupon->getRuleId());
                 if (!$this->ownership->isManaged($code, $websiteId) || !$rule->getIsActive()
                     || $rule->getSimpleAction() !== $action || abs((float) $rule->getDiscountAmount() - $amount) > 0.0001) {
                     throw new LocalizedException(__('Coupon code conflicts with an existing rule or website.'));
@@ -61,11 +66,13 @@ class CouponRules
                     ->setStopRulesProcessing(1)->setIsAdvanced(1)->setUsesPerCustomer(0)
                     ->setCustomerGroupIds($groupIds)->setWebsiteIds([$websiteId])
                     ->setCouponType(\Magento\SalesRule\Model\Rule::COUPON_TYPE_SPECIFIC)
-                    ->setUseAutoGeneration(1)->setUsesPerCoupon(1)->save();
+                    ->setUseAutoGeneration(1)->setUsesPerCoupon(1);
+                $this->ruleResource->save($rule);
             }
-            $this->coupons->create()->setRuleId($rule->getId())->setCode($code)->setUsageLimit(1)
+            $coupon = $this->coupons->create()->setRuleId($rule->getId())->setCode($code)->setUsageLimit(1)
                 ->setUsagePerCustomer(1)->setIsPrimary(false)
-                ->setType(\Magento\SalesRule\Model\Coupon::TYPE_GENERATED)->save();
+                ->setType(\Magento\SalesRule\Model\Coupon::TYPE_GENERATED);
+            $this->couponResource->save($coupon);
             return $code;
         } finally {
             $this->lock->unlock($lock);

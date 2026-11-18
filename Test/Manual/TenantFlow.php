@@ -3,10 +3,17 @@ declare(strict_types=1);
 
 /** Explicit, persistent local acceptance tests. This is not an automatic test suite. */
 if (PHP_SAPI !== 'cli' || !getenv('LE_TEST_EMAIL') || !getenv('LE_TEST_RUN')) {
-    exit("CLI only. Set LE_TEST_EMAIL and LE_TEST_RUN. Never run against a production Magento database.\n");
+    file_put_contents('php://output', "CLI only. Set LE_TEST_EMAIL and LE_TEST_RUN. Never run against a production Magento database.\n");
+    return;
 }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = \Magento\Framework\App\Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$finish = static function (int $status): void {
+    $application = new \Symfony\Component\Console\Application();
+    $application->register('result')->setCode(static fn () => $status);
+    $application->setDefaultCommand('result', true);
+    $application->run(new \Symfony\Component\Console\Input\ArrayInput([]));
+};
+$om = \Magento\Framework\App\Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('frontend');
 $stores = $om->get(\Magento\Store\Model\StoreManagerInterface::class);
 $storeId = (int) (getenv('LE_TEST_STORE') ?: 1);
@@ -61,7 +68,7 @@ function note(string $step, array $data): void
         $console['data']['events'] = array_map(static fn(array $event): array => array_intersect_key($event,
             array_flip(['entity_id', 'topic', 'store_id', 'status', 'attempts', 'last_error'])), $console['data']['events']);
     }
-    echo json_encode($console, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
+    file_put_contents('php://output', json_encode($console, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL);
 }
 function remoteStatus(): array
 {
@@ -642,7 +649,8 @@ try {
                 'coupon' => $quote->getCouponCode(), 'total' => $quote->getGrandTotal(), 'api_error' => $apiError,
                 'remote' => remoteStatus()]);
             if (!$result->getSuccess()) {
-                exit(2);
+                $finish(2);
+                return;
             }
             break;
 
@@ -651,5 +659,6 @@ try {
     }
 } catch (\Throwable $e) {
     note('ERROR:' . $command, ['type' => get_class($e), 'message' => $e->getMessage()]);
-    exit(1);
+    $finish(1);
+    return;
 }

@@ -21,7 +21,7 @@ class TierPriceTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         require_once dirname(__DIR__, 6) . '/app/bootstrap.php';
-        self::$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+        self::$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
         try {
             self::$om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
         } catch (\Magento\Framework\Exception\LocalizedException $e) {

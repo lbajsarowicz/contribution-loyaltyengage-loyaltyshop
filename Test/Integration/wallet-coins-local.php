@@ -11,7 +11,7 @@ use Magento\Framework\App\Config\ScopeConfigInterface;
 
 if (getenv('LOYALTY_WALLET_LOCAL_TEST') !== '1') { throw new RuntimeException('Local opt-in required.'); }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 if (parse_url((string) $om->get(ScopeConfigInterface::class)->getValue('web/secure/base_url'), PHP_URL_HOST) !== 'magento.test') {
     throw new RuntimeException('Restricted to magento.test.');
@@ -197,7 +197,7 @@ try {
     $check(500, (int) $balance()['funded_cents'], 'Mixed backed/unbacked cancellation restores only original backing');
     $otherStore = (int) $stores->getStore($code === 'default' ? 'hyva' : 'default')->getId();
     $check(0, $ledger->available($customerId, $otherStore), 'No cross-store wallet value');
-    echo json_encode(['store' => $code, 'wallet_coin_checks' => $checks, 'all_passed' => true, 'transport' => 'fake']) . "\n";
+    file_put_contents('php://output', json_encode(['store' => $code, 'wallet_coin_checks' => $checks, 'all_passed' => true, 'transport' => 'fake']) . "\n");
 } finally {
     $om->get(Guard::class)->release();
     if ($customerId) {
@@ -218,5 +218,5 @@ try {
         if ($outbox->keys) { $db->delete($outbox->table(), ['event_key IN (?)' => $outbox->keys]); }
         $db->delete($resource->getTableName('customer_entity'), ['entity_id = ?' => $customerId]);
     }
-    echo "Local coin fixtures removed.\n";
+    file_put_contents('php://output', "Local coin fixtures removed.\n");
 }

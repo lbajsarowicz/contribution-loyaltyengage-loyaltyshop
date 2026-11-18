@@ -13,7 +13,7 @@ use Magento\Framework\App\ResourceConnection;
 
 if (getenv('LOYALTY_WALLET_LOCAL_TEST') !== '1') { throw new RuntimeException('Local opt-in required.'); }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 if (parse_url((string) $om->get(ScopeConfigInterface::class)->getValue('web/secure/base_url'), PHP_URL_HOST) !== 'magento.test') {
     throw new RuntimeException('Restricted to magento.test.');
@@ -43,9 +43,9 @@ if (($argv[1] ?? '') === 'worker') {
         $locks->unlock('le-wallet-race-' . $nonce);
         throw new RuntimeException('The parent lock did not protect a separate DB connection.');
     }
-    echo "LOCK_BLOCKED\nREADY\n";
+    file_put_contents('php://output', "LOCK_BLOCKED\nREADY\n");
     fflush(STDOUT);
-    $barrier = BP . '/var/wallet-race-' . $nonce;
+    $barrier = dirname(__DIR__, 6) . '/var/wallet-race-' . $nonce;
     $deadline = microtime(true) + 20;
     while (!file_exists($barrier)) {
         if (microtime(true) > $deadline) { throw new RuntimeException('Fixture barrier timeout.'); }
@@ -54,14 +54,14 @@ if (($argv[1] ?? '') === 'worker') {
     $quote = $quoteModel($quoteId, $customerId, $storeId);
     try {
         $selection->reserve($quote, 6000, 10000);
-        echo "RESERVED\n";
+        file_put_contents('php://output', "RESERVED\n");
     } catch (\Magento\Framework\Exception\LocalizedException) {
-        echo "REJECTED\n";
+        file_put_contents('php://output', "REJECTED\n");
     }
-    exit(0);
+    return;
 }
 $nonce = bin2hex(random_bytes(8));
-$barrier = BP . '/var/wallet-race-' . $nonce;
+$barrier = dirname(__DIR__, 6) . '/var/wallet-race-' . $nonce;
 $customerId = 0;
 $quotes = [];
 $processes = [];
@@ -83,21 +83,19 @@ try {
     }
     if (!$locks->lock('le-wallet-race-' . $nonce, 0)) { throw new RuntimeException('Unable to obtain parent test lock.'); }
     foreach ($quotes as $id) {
-        $pipes = [];
-        $process = proc_open([PHP_BINARY, __FILE__, 'worker', (string) $customerId, (string) $id, (string) $storeId, $nonce],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        if (!is_resource($process)) { throw new RuntimeException('Unable to start independent worker.'); }
-        fclose($pipes[0]);
-        stream_set_blocking($pipes[1], false);
-        stream_set_blocking($pipes[2], false);
-        $processes[] = ['process' => $process, 'out' => $pipes[1], 'err' => $pipes[2], 'text' => '', 'errors' => ''];
+        $process = new \Symfony\Component\Process\Process([
+            PHP_BINARY, __FILE__, 'worker', (string) $customerId, (string) $id, (string) $storeId, $nonce
+        ]);
+        $process->setTimeout(null);
+        $process->start();
+        $processes[] = ['process' => $process, 'text' => '', 'errors' => ''];
     }
     $deadline = microtime(true) + 30;
     do {
         $ready = 0;
         foreach ($processes as &$process) {
-            $process['text'] .= stream_get_contents($process['out']);
-            $process['errors'] .= stream_get_contents($process['err']);
+            $process['text'] .= $process['process']->getIncrementalOutput();
+            $process['errors'] .= $process['process']->getIncrementalErrorOutput();
             $ready += str_contains($process['text'], 'READY') ? 1 : 0;
         }
         unset($process);
@@ -108,16 +106,16 @@ try {
     do {
         $running = false;
         foreach ($processes as &$process) {
-            $process['text'] .= stream_get_contents($process['out']);
-            $process['errors'] .= stream_get_contents($process['err']);
-            $running = $running || proc_get_status($process['process'])['running'];
+            $process['text'] .= $process['process']->getIncrementalOutput();
+            $process['errors'] .= $process['process']->getIncrementalErrorOutput();
+            $running = $running || $process['process']->isRunning();
         }
         unset($process);
         if (microtime(true) > $deadline) { throw new RuntimeException('Concurrent reservation timeout.'); }
         usleep(10000);
     } while ($running);
-    $output = implode("\n", array_column($processes, 'text'));
-    $errors = implode("\n", array_column($processes, 'errors'));
+    $output = implode("\n", array_map(static fn (array $process): string => $process['process']->getOutput(), $processes));
+    $errors = implode("\n", array_map(static fn (array $process): string => $process['process']->getErrorOutput(), $processes));
     $funded = $db->fetchRow($db->select()->from($ledger->table('balance'), ['funded_cents', 'reserved_funded'])
         ->where('customer_id = ?', $customerId)->where('store_id = ?', $storeId));
     if (substr_count($output, 'RESERVED') !== 1 || substr_count($output, 'REJECTED') !== 1
@@ -126,11 +124,10 @@ try {
         || (int) $funded['funded_cents'] !== 10000 || (int) $funded['reserved_funded'] !== 6000) {
         throw new RuntimeException('Concurrent reservation invariant failed: ' . $output . $errors);
     }
-    echo "Two independent PHP/DB connections: one reservation, one rejection; EUR 40 available, no debit; cross-process locks verified.\n";
+    file_put_contents('php://output', "Two independent PHP/DB connections: one reservation, one rejection; EUR 40 available, no debit; cross-process locks verified.\n");
 } finally {
     foreach ($processes as $process) {
-        if (proc_get_status($process['process'])['running']) { proc_terminate($process['process']); }
-        fclose($process['out']); fclose($process['err']); proc_close($process['process']);
+        $process['process']->stop(0);
     }
     $locks->unlock('le-wallet-race-' . $nonce);
     if (file_exists($barrier)) { unlink($barrier); }
@@ -142,4 +139,4 @@ try {
         $db->delete($resource->getTableName('customer_entity'), ['entity_id = ?' => $customerId, 'email = ?' => $email]);
     }
 }
-echo "All concurrency fixtures removed.\n";
+file_put_contents('php://output', "All concurrency fixtures removed.\n");

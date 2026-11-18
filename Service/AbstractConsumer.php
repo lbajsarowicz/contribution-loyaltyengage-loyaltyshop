@@ -11,6 +11,8 @@ use LoyaltyEngage\LoyaltyShop\Helper\Data;
  */
 abstract class AbstractConsumer
 {
+    public const TOPIC = '';
+
     /**
      * @var Data
      */
@@ -20,7 +22,6 @@ abstract class AbstractConsumer
      * Constructor
      *
      * @param Data $helper
-     * @param LoggerInterface $logger
      */
     public function __construct(
         Data $helper,

@@ -10,10 +10,10 @@ use Magento\Framework\App\{Bootstrap, ResourceConnection};
 
 if (getenv('LE_LIVE_WALLET_APPROVED') !== '1' || PHP_SAPI !== 'cli'
     || !filter_var(getenv('LE_TEST_EMAIL'), FILTER_VALIDATE_EMAIL)) {
-    exit("Explicit live test opt-in and LE_TEST_EMAIL required.\n");
+    file_put_contents('php://output', "Explicit live test opt-in and LE_TEST_EMAIL required.\n"); return;
 }
 require dirname(__DIR__, 6) . '/app/bootstrap.php';
-$om = Bootstrap::create(BP, $_SERVER)->getObjectManager();
+$om = Bootstrap::create(dirname(__DIR__, 6), $_SERVER)->getObjectManager();
 $om->get(\Magento\Framework\App\State::class)->setAreaCode('adminhtml');
 $stores = $om->get(\Magento\Store\Model\StoreManagerInterface::class);
 if (parse_url($stores->getStore('default')->getBaseUrl(), PHP_URL_HOST) !== 'magento.test') {
@@ -23,7 +23,7 @@ $mode = $argv[1] ?? 'status';
 $retry = $mode === 'retry10';
 if ($retry) { $mode = '10'; }
 if (!in_array($mode, ['10', '30', 'status', 'deliver'], true)) { throw new RuntimeException('Use 10, 30, status, deliver or explicitly approved retry10.'); }
-$file = BP . '/var/WALLET-LIVE-20261110.json';
+$file = dirname(__DIR__, 6) . '/var/WALLET-LIVE-20261110.json';
 $lock = fopen($file . '.lock', 'c');
 if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) { throw new RuntimeException('Test already running.'); }
 chmod($file . '.lock', 0600);
@@ -43,8 +43,8 @@ $selection = $om->get(Selection::class);
 $status = static fn (int $storeId): array => $api->get(rtrim((string) $helper->getApiUrl($storeId), '/')
     . '/api/v1/contact/' . $helper->hashEmail($email) . '/loyalty_status', [], $storeId);
 if ($mode === 'status') {
-    echo json_encode(['remote' => $status(1), 'cases' => $state['cases']], JSON_PRETTY_PRINT) . "\n";
-    exit;
+    file_put_contents('php://output', json_encode(['remote' => $status(1), 'cases' => $state['cases']], JSON_PRETTY_PRINT) . "\n");
+    return;
 }
 if ($mode === 'deliver') {
     $outbox = $om->get(EventOutbox::class);
@@ -65,12 +65,12 @@ if ($mode === 'deliver') {
                 if ($event && $event['status'] === 'pending' && (int) $event['attempts'] === 0) {
                     $dispatch->invoke($dispatcher, $event);
                 }
-                echo json_encode($db->fetchRow($db->select()->from($outbox->table(),
-                    ['entity_id', 'status', 'attempts', 'last_error'])->where('entity_id = ?', $event['entity_id']))) . "\n";
+                file_put_contents('php://output', json_encode($db->fetchRow($db->select()->from($outbox->table(),
+                    ['entity_id', 'status', 'attempts', 'last_error'])->where('entity_id = ?', $event['entity_id']))) . "\n");
             }
         }
     } finally { $queueLock->unlock('loyaltyshop_outbox'); }
-    exit;
+    return;
 }
 if (isset($state['cases'][$mode]) && !$retry) { throw new RuntimeException('Case already attempted. Inspect durable state; never blindly rerun.'); }
 $store = $stores->getStore($mode === '10' ? 'default' : 'hyva');
@@ -200,5 +200,5 @@ try {
     $save();
     $state['cases'][$mode]['after'] = $status($storeId);
     $save();
-    echo json_encode($state['cases'][$mode], JSON_PRETTY_PRINT) . "\n";
+    file_put_contents('php://output', json_encode($state['cases'][$mode], JSON_PRETTY_PRINT) . "\n");
 }
